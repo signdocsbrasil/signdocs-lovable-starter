@@ -1,17 +1,63 @@
 # Lovable Mega-Prompt — SignDocs Brasil
 
-Um único prompt para colar no chat de um projeto **Lovable em branco**. Gera a integração SignDocs Brasil completa: tabela Postgres, três Edge Functions, componentes React e rotas.
+Um único prompt para gerar a integração SignDocs Brasil completa em um projeto **Lovable em branco**: tabela Postgres, três Edge Functions, componentes React e rotas.
 
-**Antes de colar:** adicione os 4 secrets no painel Supabase → Edge Functions → Secrets:
+> **Para projeto Lovable já existente?** Este mega-prompt assume um projeto em branco. Se você já tem código, auth, rotas e componentes em produção, **cole o [preamble de projeto existente](https://github.com/signdocsbrasil/signdocs-lovable-starter/blob/main/prompts/existing-project-preamble.md) ANTES** do mega-prompt para evitar que o Lovable sobrescreva sua autenticação ou rotas.
+
+---
+
+## Sequência de setup (siga em ordem — não pule passos)
+
+### 1. Crie um projeto Lovable em branco (não cole o mega-prompt aqui!)
+
+Na home do Lovable (`lovable.dev/dashboard`), o input "Ask Lovable to build a landing page for my..." vira o **seed do projeto inteiro**. Se você colar o mega-prompt aqui, o Lovable tenta gerar tudo antes de Supabase estar conectado e quebra. **Cole apenas uma descrição curta como seed**, exemplo:
 
 ```
-SIGNDOCS_CLIENT_ID       = <gerado em app.signdocs.com.br (self-service)>
-SIGNDOCS_CLIENT_SECRET   = <gerado em app.signdocs.com.br (self-service)>
+Template de app de assinatura digital integrado ao SignDocs Brasil.
+Stack: React + TypeScript + Vite + Tailwind + shadcn/ui + Supabase.
+Idioma pt-BR. Vou adicionar a integração completa em um próximo prompt —
+por enquanto, gere só o esqueleto: uma landing simples.
+```
+
+Após o esqueleto carregar, você cai dentro do editor do projeto. **É lá** que o mega-prompt vai.
+
+### 2. Quando o Lovable oferecer "Enable Cloud", clique **Allow** ✅
+
+Mid-fluxo o Lovable vai pedir para habilitar **Lovable Cloud** — sua oferta de Supabase gerenciado. **Aceite.**
+
+| Caminho | Vantagens | Desvantagens |
+|---|---|---|
+| **Lovable Cloud (recomendado)** | Aplica migrations e deploya Edge Functions automaticamente. O cliente `@/integrations/supabase/client` é auto-gerado. Build verde imediato. | Cria um Supabase **novo** sob gerência do Lovable. Região default = "Americas" (latência ~150ms para BR vs ~30ms em São Paulo). **Não pode ser desativado depois** — é one-way. |
+| External Supabase via Connectors | Você controla o projeto Supabase (região São Paulo, dashboard direto). | Lovable gera o código mas **não aplica migrations nem deploya Edge Functions** automaticamente. Você precisa fazer manualmente via SQL Editor + CLI. Friction alta para remixers. |
+
+Para um template remixável: **Cloud é a escolha certa**. A latência adicional é desprezível para volume de demo, e a UX de "1-clique → funciona" vale mais do que economia de 100ms.
+
+> ⚠️ **Cloud é one-way**: depois de habilitar, não dá para desabilitar nesse mesmo projeto. Se mudar de ideia, abandone o projeto Lovable e comece outro.
+
+> 📝 **Connectors movidos**: a partir de 2026, o Supabase Connector (a alternativa ao Cloud) saiu do toolbar do projeto e foi para o sidebar do dashboard (`Connectors` na barra lateral). O ícone de raio que ficava no editor do projeto agora é só upgrade/billing — não Supabase.
+
+### 3. Gere credenciais HML em [app.signdocs.com.br](https://app.signdocs.com.br) (self-service)
+
+Crie conta grátis → dashboard → gere `client_id` e `client_secret` HML. **Sem formulário, sem espera.**
+
+### 4. Adicione 4 secrets no painel Supabase do Cloud
+
+Lovable Cloud abre o painel Supabase do projeto que ele provisionou. Vá em **Edge Functions → Secrets**:
+
+```
+SIGNDOCS_CLIENT_ID       = <gerado no passo 3>
+SIGNDOCS_CLIENT_SECRET   = <gerado no passo 3>
 SIGNDOCS_BASE_URL        = https://api-hml.signdocs.com.br
-SIGNDOCS_WEBHOOK_SECRET  = pending (placeholder; preenchido na etapa final)
+SIGNDOCS_WEBHOOK_SECRET  = pending (placeholder; preenchido depois)
 ```
 
 > ⚠️ HML usa **hífen** (`api-hml`). Com ponto (`api.hml`) dá timeout silencioso — é o erro nº 1.
+
+### 5. Cole o mega-prompt no chat do Lovable
+
+Agora sim — dentro do editor do projeto, no chat "Ask Lovable...", cole o bloco entre triple-backticks abaixo. Ignore os "suggestion chips" que aparecem (ex: "Configurar SEO", "Adicionar formulário de contato", "Criar tela de onboarding") — são up-sells; nosso fluxo não precisa.
+
+> 💰 **Orçamento de créditos**: o caminho feliz consome ~5–8 créditos (mega-prompt geração + Cloud setup + secrets). Free tier dá 5/dia + ~5 bonus iniciais = ~10 — suficiente para uma sessão se nada falhar. Pro ($5/mês) dá 20 e roll-over. Em abril de 2026, há promo "2x credits until Apr 30".
 
 ---
 
@@ -312,17 +358,62 @@ Index. Tipografia Inter. Nada de gradientes berrantes — estilo corporativo.
 
 ## Depois de rodar o prompt
 
+### Configuração final
+
 1. Abra o painel Supabase → Edge Functions → confirme que **as três funções** estão `Active`.
 2. Abra Database → Tables → confirme que `envelope_status` tem RLS ligada.
 3. Abra Database → Replication → `supabase_realtime` → confirme que `envelope_status` está marcada.
 4. Pegue a URL pública da função `signdocs-webhook`: `https://<project-ref>.supabase.co/functions/v1/signdocs-webhook`.
-5. No painel HML do SignDocs, registre o webhook com essa URL e os eventos: `TRANSACTION.COMPLETED`, `TRANSACTION.CANCELLED`, `TRANSACTION.EXPIRED`, `TRANSACTION.FAILED` (os eventos começam com `TRANSACTION.*`, não `SIGNING_SESSION.*`).
-6. Copie o campo `secret` da resposta do registro (mostrado uma única vez) e atualize `SIGNDOCS_WEBHOOK_SECRET` no Supabase via painel (não pelo chat do Lovable, por segurança). Redeploy a função webhook se necessário.
-7. Teste no preview do Lovable com um PDF de teste, seu próprio email como signatário, e um CPF válido (ex: `111.444.777-35`).
+5. No painel HML do SignDocs (`app.signdocs.com.br` → Webhooks → Novo), registre o webhook com essa URL e selecione os eventos:
+   - `TRANSACTION.COMPLETED`
+   - `TRANSACTION.CANCELLED`
+   - `TRANSACTION.EXPIRED`
+   - `TRANSACTION.FAILED`
+
+   ⚠️ Os eventos começam com `TRANSACTION.*` no painel — não existem `SIGNING_SESSION.*` na API HML.
+6. **Copie o `secret` retornado IMEDIATAMENTE** — aparece uma única vez. Cole **direto no painel Supabase** (Edge Functions → Secrets → editar `SIGNDOCS_WEBHOOK_SECRET`). **Não cole via chat do Lovable nem em qualquer outro AI assistant** — o secret fica no histórico e vira vetor de ataque. Se você acidentalmente passar o secret por chat, **rotacione**: delete o webhook em SignDocs HML, registre de novo, atualize com o novo secret pelo painel Supabase.
+7. Teste no preview do Lovable com um PDF de teste (até ~10MB; PDFs maiores podem hit timeout do Edge Function), seu próprio email como signatário, e um CPF válido (ex: `111.444.777-35`).
+
+### Comportamentos esperados pós-assinatura
+
+- **SignDocs envia automaticamente** um email de confirmação ao signatário a partir de `no-reply@mg.signdocs.com.br`. Não precisa construir esse fluxo no app.
+- O webhook entrega `event.data.evidenceId` no payload de TRANSACTION.COMPLETED — esse é o ID do **evidence pack `.p7m`** (pacote criptográfico assinado contendo hash do documento, geolocalização, IP, timestamp, método de autenticação). Pode baixar depois via `GET /v1/evidence/{evidenceId}/download` (autenticado). Para um SaaS de produção, salve o `evidence_id` e exponha um botão "Baixar evidência" para o signatário.
+- A linha em `envelope_status` fica:
+  ```json
+  {
+    "session_id":     "ss_01k...",
+    "transaction_id": "tx_01k...",
+    "status":         "COMPLETED",
+    "evidence_id":    "ev_01k...",
+    "updated_at":     "2026-04-24T00:43:08+00:00"
+  }
+  ```
+
+### ⚠️ HML é efêmero
+
+Todos os documentos, sessões, evidências e logs em HML são apagados em até **7 dias** automaticamente. **Nunca use PDFs reais, CPFs reais ou emails de clientes em HML** — vão sumir e não há recuperação. Para produção, troque `SIGNDOCS_BASE_URL` para `https://api.signdocs.com.br` e use credenciais de produção (geradas no mesmo dashboard self-service). Sem mudança de código.
+
+### Payload real do webhook (para referência)
+
+A `TRANSACTION.COMPLETED` que SignDocs envia tem essa forma:
+
+```json
+{
+  "eventType":         "TRANSACTION.COMPLETED",
+  "transactionId":     "tx_01kpyf0ahs9jt2mekrwdkv2zha",
+  "dataTransactionId": "tx_01kpyf0ahs9jt2mekrwdkv2zha",
+  "data": {
+    "evidenceId": "ev_01kpyf0tqph23knc1vckqfxjmf",
+    "sessionId":  null
+  }
+}
+```
+
+Note que `data.sessionId` frequentemente vem `null` — por isso o webhook faz UPDATE com OR (`transaction_id = event.transactionId OR session_id = event.data.sessionId`). Se você só fizer match por `session_id`, vai atualizar zero linhas.
 
 ## Se algo falhar
 
-Veja a [tabela de troubleshooting no guia técnico](https://docs.signdocs.com.br/guias/lovable-integracao.html#9-troubleshooting) — tem prompts prontos de correção para os problemas mais comuns (401 no signingUrl, webhook sempre 401, status travado em PENDING, Realtime sem atualizar, `Buffer is not defined` no Deno, etc).
+Veja a [tabela de troubleshooting no guia técnico](https://docs.signdocs.com.br/guias/lovable-integracao.html#9-troubleshooting) — tem prompts prontos de correção para os problemas mais comuns (401 no signingUrl, webhook sempre 401, status travado em PENDING, Realtime sem atualizar, `Buffer is not defined` no Deno, dois `session_id` na URL, NOT NULL violation no upsert, etc).
 
 ## Histórico de correções (learnings de teste real — 2026-04-23)
 
