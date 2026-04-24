@@ -7,22 +7,30 @@
 import { supabase } from "@/integrations/supabase/client";
 
 type StartSigningInput = {
-  signerName: string;
+  signerName:  string;
   signerEmail: string;
-  signerCpf?: string;
-  pdfBase64: string;
-  filename?: string;
+  signerCpf:   string;   // obrigatório — SignDocs rejeita sessões sem CPF
+  pdfBase64:   string;
+  filename?:   string;
 };
 
 export function useSignDocs() {
   async function startSigning(input: StartSigningInput) {
+    // Validação final: 11 dígitos no CPF
+    const cpfDigits = input.signerCpf.replace(/\D/g, "");
+    if (cpfDigits.length !== 11) {
+      throw new Error("CPF é obrigatório e deve ter 11 dígitos.");
+    }
+
     const { data, error } = await supabase.functions.invoke(
       "create-signing-session",
       {
         body: {
           ...input,
-          // Anexamos session_id na returnUrl para que /assinado saiba
-          // qual sessão observar via Realtime.
+          signerCpf: cpfDigits,
+          // returnUrl LIMPO — sem placeholders. SignDocs adiciona ?session_id= no
+          // redirect de sucesso automaticamente. Qualquer manipulação manual
+          // aqui duplicaria ou corromperia o query param.
           returnUrl: `${window.location.origin}/assinado`,
         },
       },
@@ -30,12 +38,7 @@ export function useSignDocs() {
 
     if (error) throw error;
 
-    // Preserva session_id no query string para a página /assinado consumir
-    const finalUrl = new URL(data.signingUrl);
-    // Alguns browsers normalizam; usamos a URL retornada como está.
-    // O parâmetro ?session_id= será anexado pelo SignDocs ao redirecionar
-    // de volta para returnUrl. Nada a fazer aqui.
-    window.location.href = finalUrl.toString();
+    window.location.href = data.signingUrl;
   }
 
   return { startSigning };

@@ -82,8 +82,25 @@ export default function Index() {
     );
   }
 
+  // CPF é obrigatório (SignDocs rejeita sessões sem CPF).
+  const cpfDigits = signerCpf.replace(/\D/g, "");
+  const cpfValid = cpfDigits.length === 11;
+
   const canSend =
-    !!pdfBase64 && signerName.trim().length > 1 && /@/.test(signerEmail);
+    !!pdfBase64 &&
+    signerName.trim().length > 1 &&
+    /@/.test(signerEmail) &&
+    cpfValid;
+
+  // Máscara simples de CPF enquanto digita (000.000.000-00)
+  function onCpfChange(value: string) {
+    const digits = value.replace(/\D/g, "").slice(0, 11);
+    let masked = digits;
+    if (digits.length > 9) masked = `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
+    else if (digits.length > 6) masked = `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`;
+    else if (digits.length > 3) masked = `${digits.slice(0, 3)}.${digits.slice(3)}`;
+    setSignerCpf(masked);
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
@@ -125,13 +142,22 @@ export default function Index() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="cpf">CPF (opcional)</Label>
+            <Label htmlFor="cpf">
+              CPF <span className="text-red-500">*</span>
+            </Label>
             <Input
               id="cpf"
               value={signerCpf}
-              onChange={(e) => setSignerCpf(e.target.value)}
-              placeholder="000.000.000-00"
+              onChange={(e) => onCpfChange(e.target.value)}
+              placeholder="111.444.777-35"
+              required
+              aria-invalid={signerCpf.length > 0 && !cpfValid}
             />
+            {signerCpf.length > 0 && !cpfValid && (
+              <p className="text-xs text-red-600">
+                CPF deve ter 11 dígitos (com ou sem máscara).
+              </p>
+            )}
           </div>
 
           <div className="pt-2">
@@ -142,7 +168,7 @@ export default function Index() {
                 signer={{
                   name:  signerName,
                   email: signerEmail,
-                  cpf:   signerCpf || undefined,
+                  cpf:   cpfDigits,
                 }}
                 disabled={!canSend}
               />

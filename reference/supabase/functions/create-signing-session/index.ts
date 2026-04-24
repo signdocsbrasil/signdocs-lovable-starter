@@ -5,6 +5,11 @@
 //
 // Deploy: supabase functions deploy create-signing-session
 //   (SEM --no-verify-jwt — esta função exige usuário autenticado.)
+//
+// NOTAS DE TESTE REAL (2026-04-23):
+//   1. CPF é OBRIGATÓRIO — SignDocs rejeita sessões sem CPF.
+//   2. Usamos session.sessionId (NÃO session.id — esse vem como null).
+//   3. returnUrl deve vir LIMPO — SignDocs adiciona ?session_id= no redirect.
 
 import { SignDocsBrasilClient } from "npm:@signdocs-brasil/api@1.3.0";
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -19,6 +24,10 @@ const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
 );
+
+function normalizeCpf(cpf: string): string {
+  return cpf.replace(/\D/g, "");
+}
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") {
@@ -35,6 +44,7 @@ Deno.serve(async (req) => {
   }
 
   // 2) Lê o payload
+  const body = await req.json();
   const {
     signerName,
     signerEmail,
@@ -42,16 +52,34 @@ Deno.serve(async (req) => {
     pdfBase64,
     filename,
     returnUrl,
-  } = await req.json();
+  } = body;
 
-  // 3) Cria a sessão de assinatura no SignDocs
+  // 3) Valida CPF — obrigatório para o SignDocs aceitar a sessão
+  const cpfDigits = signerCpf ? normalizeCpf(signerCpf) : "";
+  if (cpfDigits.length !== 11) {
+    return Response.json(
+      { error: "CPF é obrigatório e deve ter 11 dígitos." },
+      { status: 400 },
+    );
+  }
+
+  // 4) Valida returnUrl — rejeita placeholders tipo __SESSION_ID__ que podem
+  //    ter vazado do frontend. SignDocs adiciona session_id automaticamente.
+  if (returnUrl?.includes("__SESSION_ID__")) {
+    return Response.json(
+      { error: "returnUrl não deve conter placeholders. Passe a URL limpa; SignDocs adiciona ?session_id automaticamente no redirect." },
+      { status: 400 },
+    );
+  }
+
+  // 5) Cria a sessão de assinatura no SignDocs
   const session = await signdocs.signingSessions.create({
     purpose: "DOCUMENT_SIGNATURE",
     policy:  { profile: "CLICK_ONLY" },
     signer: {
       name:           signerName,
       email:          signerEmail,
-      cpf:            signerCpf,
+      cpf:            cpfDigits,
       userExternalId: userData.user.id,
     },
     document: { content: pdfBase64, filename: filename ?? "contrato.pdf" },
@@ -59,11 +87,12 @@ Deno.serve(async (req) => {
     locale: "pt-BR",
   });
 
-  // 4) Monta o signingUrl — OBRIGATÓRIO combinar url + ?cs=<clientSecret>
+  // 6) Monta o signingUrl — OBRIGATÓRIO combinar url + ?cs=<clientSecret>
   //    Sem o ?cs, a página hospedada retorna 401.
   const signingUrl = `${session.url}?cs=${encodeURIComponent(session.clientSecret)}`;
 
-  // 5) Persiste o status inicial (leitura via RLS pelo dono no frontend)
+  // 7) Persiste o status inicial. session.sessionId (não session.id — esse
+  //    campo não existe no retorno do SDK e vem undefined).
   await supabase.from("envelope_status").upsert({
     session_id:     session.sessionId,
     transaction_id: session.transactionId,

@@ -12,9 +12,9 @@ type Props = {
   pdfBase64: string;
   filename?: string;
   signer: {
-    name: string;
+    name:  string;
     email: string;
-    cpf?: string;
+    cpf:   string;  // obrigatório — SignDocs rejeita sessões sem CPF
   };
   disabled?: boolean;
 };
