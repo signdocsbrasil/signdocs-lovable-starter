@@ -36,9 +36,40 @@ Para um template remixável: **Cloud é a escolha certa**. A latência adicional
 
 > 📝 **Connectors movidos**: a partir de 2026, o Supabase Connector (a alternativa ao Cloud) saiu do toolbar do projeto e foi para o sidebar do dashboard (`Connectors` na barra lateral). O ícone de raio que ficava no editor do projeto agora é só upgrade/billing — não Supabase.
 
-### 3. Gere credenciais HML em [app.signdocs.com.br](https://app.signdocs.com.br) (self-service)
+### 3. Gere credenciais HML em [app.signdocs.com.br](https://app.signdocs.com.br) (self-service via wizard de plano)
 
-Crie conta grátis → dashboard → gere `client_id` e `client_secret` HML. **Sem formulário, sem espera.**
+**Pré-condições obrigatórias:**
+- Conta deve ser **Pessoa Jurídica (com CNPJ)** — Pessoa Física não tem acesso ao plano Enterprise nem à API.
+- Web ou Android — usuários iOS não veem a opção Enterprise por restrição da App Store.
+
+**Fluxo passo a passo (~3 min):**
+
+1. Crie conta grátis em [app.signdocs.com.br](https://app.signdocs.com.br). No cadastro, marque **Pessoa Jurídica** e preencha CNPJ.
+2. No dashboard, abra o menu de **Perfil** (avatar) → **Gerenciar Plano**.
+3. O wizard de plano abre. Responda nesta sequência para chegar ao Enterprise:
+   - "Quer o plano grátis (≤5 docs/mês)?" → **Não**
+   - "Precisa de mais de 4 usuários?" → **Sim**
+   - "Precisa de mais de 80 docs/mês?" → **Sim**
+   - "Precisa de mais de 200 docs/mês?" → **Sim**
+4. Você cai no card **"Plano Enterprise — Orçamento personalizado"**. No campo "Descreva suas necessidades", explique o caso de uso. Exemplo:
+   > *"Integração SignDocs Brasil em SaaS no Lovable com Supabase Edge Functions. Quero credenciais HML para integrar e testar antes de migrar para produção."*
+5. Clique **Receber Orçamento**. O backend dispara um email para o time SignDocs E **flagueia sua conta como Enterprise imediatamente** (sem espera, sem revisão manual). O email é só para acompanhamento de vendas.
+6. Volte para o **Perfil**. Agora aparece o botão **Abrir API Dashboard** (visível só para Enterprise). Clique.
+7. Na tela "Ativar credenciais HML", preencha:
+   - **Nome da empresa** (obrigatório)
+   - **CNPJ** (opcional mas recomendado para integrar com nota fiscal/cobrança no futuro)
+   - Marque o checkbox **"Concordo com os termos de uso da API sandbox SignDocs"**
+8. Clique **Ativar credenciais HML**.
+9. Um modal abre **UMA ÚNICA VEZ** com:
+   - `tenantId`
+   - `clientId`
+   - `clientSecret` ⚠️ não mostrado de novo
+   - Sandbox endpoint URL
+   - Docs URL
+
+   **Copie todos os 4 imediatamente** para um gerenciador de senhas. Se perder o `clientSecret`, é necessário reprovisionar (rotaciona o secret; `clientId` continua o mesmo, mas o secret antigo invalida).
+
+> 💡 Se sua demanda real é de testes (não 200 docs/mês de fato), seja honesto na descrição — o time SignDocs não vai cobrar você por algo que não está usando. A flag Enterprise é apenas para destravar o acesso à API; cutover comercial para produção é conversado depois.
 
 ### 4. Adicione 4 secrets no painel Supabase do Cloud
 
