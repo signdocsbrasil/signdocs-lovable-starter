@@ -6,27 +6,51 @@ Integra com o SignDocs Brasil via **Supabase Edge Functions** (padrão nativo do
 
 ---
 
+## 🎬 Demo ao vivo
+
+**[sign-docs-brasil.lovable.app](https://sign-docs-brasil.lovable.app)**
+
+Veja o template funcionando — fluxo completo de assinatura digital com validade jurídica brasileira em ambiente HML. PDFs descartáveis, dados fictícios (CPF de teste: `111.444.777-35`), zero compromisso.
+
+> ⚠️ Demo em HML — todos os documentos, assinaturas e dados são apagados em até 7 dias por design. Não envie contratos reais.
+
+---
+
 ## Três caminhos para usar
 
-### 🚀 Caminho 1 — Mega-prompt (mais rápido, ~10 min)
+### 🍴 Caminho 1 — Remix do template Lovable (mais rápido, ~5 min)
 
-Cole um único prompt no chat de um projeto Lovable em branco. Ele gera a tabela, as duas Edge Functions, os componentes React e as rotas de uma vez.
+Visite o [demo ao vivo](https://sign-docs-brasil.lovable.app) e clique no badge **"Made with Lovable"** no rodapé do app. Lovable abre o projeto e oferece um botão para você remixar no seu próprio account — você ganha um clone funcional, só precisa adicionar suas próprias credenciais HML.
+
+**Após remixar:**
+1. [Gere credenciais HML](https://docs.signdocs.com.br/guias/lovable-integracao.html#0-pre-requisitos) self-service em `app.signdocs.com.br`
+2. No Supabase do seu Lovable Cloud, adicione os 4 secrets `SIGNDOCS_*`
+3. Registre o webhook em SignDocs HML, atualize `SIGNDOCS_WEBHOOK_SECRET`
+4. Teste no preview do Lovable — pronto
+
+### 🚀 Caminho 2 — Mega-prompt em projeto Lovable em branco (~10 min)
+
+Para começar do zero (não remixar). Cole um único prompt no chat de um projeto Lovable em branco e ele gera a tabela, três Edge Functions, componentes React e rotas de uma vez.
 
 👉 [`prompts/lovable-mega-prompt.md`](prompts/lovable-mega-prompt.md)
 
-**Pré-requisito:** adicione os 4 secrets do SignDocs no painel Supabase antes de rodar o prompt (veja [`.env.example`](.env.example)).
+**Pré-requisito:** habilitar Lovable Cloud quando solicitado, gerar credenciais HML self-service, adicionar 4 secrets no painel Supabase. [Guia completo no docs portal](https://docs.signdocs.com.br/guias/lovable-integracao.html).
 
-### 🧱 Caminho 2 — Prompts sequenciais (passo-a-passo, ~20 min)
+### 🧱 Caminho 3 — Prompts sequenciais para projeto existente (~20 min)
 
-Se você quer ir construindo por partes e entendendo cada uma, cole os 5 prompts em ordem. Ideal para aprender a integração.
+Se você já tem um SaaS Lovable em produção e quer adicionar assinatura sem reescrever, cole o [preamble de projeto existente](prompts/existing-project-preamble.md) primeiro e depois aplique os 5 prompts em ordem. Ideal também para entender cada parte da integração.
 
-👉 [Guia completo com os 5 prompts](https://github.com/signdocsbrasil/external-api/blob/main/docs/lovable-integration-guide.md)
+👉 [Guia completo com os 5 prompts](https://docs.signdocs.com.br/guias/lovable-integracao.html)
 
-### 🍴 Caminho 3 — Remix direto (para times SignDocs e parceiros)
+---
 
-Publicaremos uma versão deste starter como projeto Lovable remixável. Quando disponível, o link será incluído aqui e na [página de integração Lovable](https://www.signdocs.com.br/integracao-lovable-assinatura-digital.html).
+## Código-fonte de referência
 
-Enquanto isso, este repositório serve como referência canônica — o código em `reference/` é exatamente o que os prompts geram.
+Este repositório contém o código exato que o demo está rodando — está em [`reference/`](reference/). Pode usar para:
+
+- Conferir o que o Lovable gerou após rodar os prompts (compare contra o código de referência)
+- Adaptar para outros stacks (Vercel, Cloudflare Workers, etc.) que aceitam Edge Functions Deno-compatíveis
+- Estudar offline antes de começar a remixar
 
 ---
 
