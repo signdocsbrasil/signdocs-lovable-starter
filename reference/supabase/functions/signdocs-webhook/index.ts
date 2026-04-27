@@ -6,10 +6,16 @@
 // Deploy: supabase functions deploy signdocs-webhook --no-verify-jwt
 //   (webhooks vêm dos servidores SignDocs, não do Supabase Auth.)
 //
-// NOTAS DE TESTE REAL (2026-04-23):
+// NOTAS DE TESTE REAL (atualizado 2026-04-27):
 //   1. Deno NÃO tem Buffer global — usamos hexToBytes() + Uint8Array.
-//   2. Eventos chegam como TRANSACTION.* (não SIGNING_SESSION.*).
-//   3. UPDATE tenta transaction_id E session_id — cobre variações de payload.
+//   2. Eventos chegam em três famílias dependendo do flow:
+//        - TRANSACTION.* / SIGNING_SESSION.*  por sessão (single-signer ou per-signer dentro de envelope)
+//        - ENVELOPE.*                         por envelope inteiro (ALL_SIGNED, EXPIRED, CREATED)
+//      Para single-signer, só TRANSACTION.* / SIGNING_SESSION.* chegam.
+//      Para envelopes, ENVELOPE.ALL_SIGNED é o sinal limpo de "fechou com sucesso";
+//      ENVELOPE.EXPIRED é o sinal de "envelope expirou com pendências".
+//   3. UPDATE tenta transaction_id E session_id — cobre variações de payload de
+//      sessão. Para eventos ENVELOPE.*, fazemos match por envelope_id (no payload).
 //   4. Logamos payload e # linhas afetadas — fundamental para debug remoto.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -76,9 +82,12 @@ Deno.serve(async (req) => {
     dataTransactionId: event.data?.transactionId,
   });
 
-  // Mapa do eventType para novo status — inclui SIGNING_SESSION.* por
-  // compatibilidade futura, mas na prática SignDocs só emite TRANSACTION.*.
+  // Mapa do eventType para novo status. SignDocs emite eventos em três
+  // famílias; o switch abaixo cobre todas. SIGNING_SESSION.* dispara em
+  // paralelo a TRANSACTION.* quando a transação foi criada via
+  // /v1/signing-sessions — ambas mapeiam para o mesmo status.
   const statusMap: Record<string, string> = {
+    // Por sessão / signatário individual
     "TRANSACTION.COMPLETED":     "COMPLETED",
     "SIGNING_SESSION.COMPLETED": "COMPLETED",
     "TRANSACTION.CANCELLED":     "CANCELLED",
@@ -86,6 +95,9 @@ Deno.serve(async (req) => {
     "TRANSACTION.EXPIRED":       "EXPIRED",
     "SIGNING_SESSION.EXPIRED":   "EXPIRED",
     "TRANSACTION.FAILED":        "FAILED",
+    // Por envelope inteiro (apenas multi-signer)
+    "ENVELOPE.ALL_SIGNED":       "COMPLETED",
+    "ENVELOPE.EXPIRED":          "EXPIRED",
   };
   const newStatus = statusMap[event.eventType];
   if (!newStatus) {
@@ -100,17 +112,24 @@ Deno.serve(async (req) => {
     patch.evidence_id = event.data.evidenceId;
   }
 
-  // UPDATE tenta transaction_id primeiro (SignDocs sempre manda), depois
-  // cai para session_id (alguns payloads têm data.sessionId preenchido).
-  // A OR garante que cobrimos ambos os casos sem duplicar linha.
-  const { data, error } = await supabase
-    .from("envelope_status")
-    .update(patch)
-    .or(
+  // ENVELOPE.* events trazem envelopeId no payload, NÃO transactionId.
+  // Match por envelope_id; eventos por sessão usam o caminho padrão.
+  const isEnvelopeEvent = event.eventType.startsWith("ENVELOPE.");
+  const envelopeId = event.payload?.envelopeId;
+
+  let query = supabase.from("envelope_status").update(patch);
+  if (isEnvelopeEvent && envelopeId) {
+    query = query.eq("envelope_id", envelopeId);
+  } else {
+    // UPDATE tenta transaction_id primeiro (SignDocs sempre manda), depois
+    // cai para session_id (alguns payloads têm data.sessionId preenchido).
+    // A OR garante que cobrimos ambos os casos sem duplicar linha.
+    query = query.or(
       `transaction_id.eq.${event.transactionId}` +
       (event.data?.sessionId ? `,session_id.eq.${event.data.sessionId}` : ""),
-    )
-    .select();
+    );
+  }
+  const { data, error } = await query.select();
 
   if (error) {
     console.error("update envelope_status error:", error);

@@ -210,17 +210,27 @@ Fluxo:
   e) Logar o payload recebido (com fields eventType, transactionId,
      data.sessionId, dataTransactionId) e o número de linhas afetadas pelo
      UPDATE — fundamental para debug.
-  f) Parsear body JSON. Sobre event.eventType (SignDocs emite prefixo
-     TRANSACTION.*; inclua SIGNING_SESSION.* por compatibilidade futura):
+  f) Parsear body JSON. SignDocs emite eventos em três famílias —
+     o switch precisa cobrir todas:
+
+     Por sessão (TRANSACTION.* e SIGNING_SESSION.* disparam em paralelo
+     para o mesmo evento de ciclo de vida; trate ambos como sinônimos):
        TRANSACTION.COMPLETED ou SIGNING_SESSION.COMPLETED:
          UPDATE envelope_status SET status='COMPLETED',
                                      evidence_id=event.data?.evidenceId,
                                      updated_at=now()
            WHERE transaction_id = event.transactionId
               OR session_id     = event.data?.sessionId
-       TRANSACTION.CANCELLED: UPDATE ... status='CANCELLED' ...
-       TRANSACTION.EXPIRED:   UPDATE ... status='EXPIRED' ...
-       TRANSACTION.FAILED:    UPDATE ... status='FAILED' ... (adicione 'FAILED' ao enum de status visualizado no frontend)
+       TRANSACTION.CANCELLED ou SIGNING_SESSION.CANCELLED: status='CANCELLED'
+       TRANSACTION.EXPIRED   ou SIGNING_SESSION.EXPIRED:   status='EXPIRED'
+       TRANSACTION.FAILED:                                 status='FAILED' (adicione 'FAILED' ao enum de status visualizado no frontend)
+
+     Por envelope inteiro (apenas multi-signer — ignore se você usa só
+     /v1/signing-sessions; estes eventos não chegam em fluxos single-signer):
+       ENVELOPE.ALL_SIGNED: status='COMPLETED' (todos os signatários assinaram)
+       ENVELOPE.EXPIRED:    status='EXPIRED'   (envelope expirou com pendências)
+       Para esses, faça WHERE envelope_id = event.payload?.envelopeId
+       (ENVELOPE.* events trazem envelopeId no payload, NÃO transactionId).
   g) Responder "ok" 200.
 
 ══════════════════════════════════════════════════
@@ -401,7 +411,11 @@ Index. Tipografia Inter. Nada de gradientes berrantes — estilo corporativo.
    - `TRANSACTION.EXPIRED`
    - `TRANSACTION.FAILED`
 
-   ⚠️ Os eventos começam com `TRANSACTION.*` no painel — não existem `SIGNING_SESSION.*` na API HML.
+   Para apps **multi-signer** (envelopes), adicione também:
+   - `ENVELOPE.ALL_SIGNED` — todos os signatários do envelope assinaram (sinal limpo de "envelope fechou com sucesso")
+   - `ENVELOPE.EXPIRED` — envelope expirou com signatários pendentes
+
+   `SIGNING_SESSION.{COMPLETED,CANCELLED,EXPIRED}` também ficam disponíveis no painel — disparam em paralelo aos `TRANSACTION.*` para qualquer fluxo baseado em sessão. Inscrever-se aos dois é redundante; escolha um (este template usa `TRANSACTION.*`).
 6. **Copie o `secret` retornado IMEDIATAMENTE** — aparece uma única vez. Cole **direto no painel Supabase** (Edge Functions → Secrets → editar `SIGNDOCS_WEBHOOK_SECRET`). **Não cole via chat do Lovable nem em qualquer outro AI assistant** — o secret fica no histórico e vira vetor de ataque. Se você acidentalmente passar o secret por chat, **rotacione**: delete o webhook em SignDocs HML, registre de novo, atualize com o novo secret pelo painel Supabase.
 7. Teste no preview do Lovable com um PDF de teste (até ~10MB; PDFs maiores podem hit timeout do Edge Function), seu próprio email como signatário, e um CPF válido (ex: `111.444.777-35`).
 
